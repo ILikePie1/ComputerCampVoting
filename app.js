@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { firebaseConfig } from "./firebase-config.js";
 import {
   getDatabase,
   ref,
@@ -7,119 +8,183 @@ import {
   increment
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
 
-// 1. Replace this object with the config from your Firebase Web App settings.
-// 2. Make sure databaseURL is included. You can find it in Realtime Database.
-const firebaseConfig = {
-  apiKey: "AIzaSyDT8Rl15reTRF15dIvlP9Vtv60OSCNP7VU",
-  authDomain: "votingapp-4bda1.firebaseapp.com",
-  databaseURL: "https://votingapp-4bda1-default-rtdb.firebaseio.com/",
-  projectId: "votingapp-4bda1",
-  storageBucket: "votingapp-4bda1.firebasestorage.app",
-  messagingSenderId: "846612777368",
-  appId: "1:846612777368:web:4c8aa1ee396b1bcb39c3ed",
-  measurementId: "G-3Z25S1B8MW"
-};
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const votesRef = ref(db, "votes");
 
-const yesButton = document.querySelector("#yesButton");
-const noButton = document.querySelector("#noButton");
+const MAX_SCENARIOS = 15;
+const LOCAL_VOTES_KEY = "multi-person-yes-no-votes-v1";
+
+const scenarioList = document.querySelector("#scenarioList");
+const emptyState = document.querySelector("#emptyState");
 const statusMessage = document.querySelector("#statusMessage");
-const yesCount = document.querySelector("#yesCount");
-const noCount = document.querySelector("#noCount");
-const totalCount = document.querySelector("#totalCount");
-const yesPercent = document.querySelector("#yesPercent");
-const noPercent = document.querySelector("#noPercent");
-const yesBar = document.querySelector("#yesBar");
-const noBar = document.querySelector("#noBar");
 
-const LOCAL_VOTE_KEY = "yes-no-poll-vote";
+let activeScenarios = [];
 
 function setStatus(message, type = "") {
   statusMessage.textContent = message;
   statusMessage.className = `status ${type}`.trim();
 }
 
-function toPercent(part, total) {
-  if (!total) return 0;
-  return Math.round((part / total) * 100);
+function normalizeName(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function renderVoteLock() {
-  const previousVote = localStorage.getItem(LOCAL_VOTE_KEY);
-
-  if (previousVote) {
-    yesButton.disabled = true;
-    noButton.disabled = true;
-    setStatus(`This browser already voted ${previousVote.toUpperCase()}.`, "success");
-  } else {
-    yesButton.disabled = false;
-    noButton.disabled = false;
+function readLocalVotes() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_VOTES_KEY)) || {};
+  } catch (error) {
+    console.warn("Could not read local vote lock.", error);
+    return {};
   }
 }
 
-function renderCounts(votes) {
-  const yes = Number(votes?.yes || 0);
-  const no = Number(votes?.no || 0);
-  const total = yes + no;
-  const yesPct = toPercent(yes, total);
-  const noPct = toPercent(no, total);
-
-  yesCount.textContent = yes.toLocaleString();
-  noCount.textContent = no.toLocaleString();
-  totalCount.textContent = total.toLocaleString();
-
-  yesPercent.textContent = `${yesPct}%`;
-  noPercent.textContent = `${noPct}%`;
-  yesBar.style.width = `${yesPct}%`;
-  noBar.style.width = `${noPct}%`;
+function saveLocalVote(scenarioId, name, choice) {
+  try {
+    const votes = readLocalVotes();
+    votes[scenarioId] = {
+      name,
+      choice,
+      votedAt: new Date().toISOString()
+    };
+    localStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(votes));
+  } catch (error) {
+    console.warn("Could not save local vote lock.", error);
+  }
 }
 
-async function submitVote(choice) {
-  const previousVote = localStorage.getItem(LOCAL_VOTE_KEY);
+function getStoredVote(scenarioId, name) {
+  const storedVote = readLocalVotes()[scenarioId];
 
-  if (previousVote) {
-    setStatus(`This browser already voted ${previousVote.toUpperCase()}.`, "success");
+  if (!storedVote || storedVote.name !== name) {
+    return null;
+  }
+
+  return storedVote;
+}
+
+function setScenarioButtonsDisabled(card, disabled) {
+  card.querySelectorAll("button[data-choice]").forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+async function submitVote(scenarioId, name, choice, card) {
+  const storedVote = getStoredVote(scenarioId, name);
+
+  if (storedVote) {
+    setStatus(`This browser already voted ${storedVote.choice.toUpperCase()} for ${name}.`, "success");
     return;
   }
 
-  yesButton.disabled = true;
-  noButton.disabled = true;
-  setStatus("Saving your vote...");
+  setScenarioButtonsDisabled(card, true);
+  setStatus(`Saving your ${choice.toUpperCase()} vote for ${name}...`);
 
   try {
     await update(ref(db), {
-      [`votes/${choice}`]: increment(1)
+      [`votes/${scenarioId}/${choice}`]: increment(1)
     });
 
-    localStorage.setItem(LOCAL_VOTE_KEY, choice);
-    setStatus(`Thanks! Your ${choice.toUpperCase()} vote was counted.`, "success");
+    saveLocalVote(scenarioId, name, choice);
+    setStatus(`Thanks! Your ${choice.toUpperCase()} vote for ${name} was counted.`, "success");
+    renderScenarioList(activeScenarios);
   } catch (error) {
     console.error(error);
+    setScenarioButtonsDisabled(card, false);
     setStatus("Vote could not be saved. Check your Firebase config and database rules.", "error");
-    renderVoteLock();
   }
 }
 
-yesButton.addEventListener("click", () => submitVote("yes"));
-noButton.addEventListener("click", () => submitVote("no"));
+function createScenarioCard({ id, name }) {
+  const storedVote = getStoredVote(id, name);
 
-renderCounts({ yes: 0, no: 0 });
-renderVoteLock();
+  const card = document.createElement("article");
+  card.className = "scenario-card";
+
+  const header = document.createElement("div");
+  header.className = "scenario-header";
+
+  const meta = document.createElement("p");
+  meta.className = "scenario-meta";
+  meta.textContent = `Scenario ${id}`;
+
+  const title = document.createElement("h2");
+  title.textContent = name;
+
+  header.append(meta, title);
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "button-row compact";
+
+  const yesButton = document.createElement("button");
+  yesButton.className = "vote-button yes";
+  yesButton.type = "button";
+  yesButton.dataset.choice = "yes";
+  yesButton.textContent = "Vote Yes";
+  yesButton.addEventListener("click", () => submitVote(id, name, "yes", card));
+
+  const noButton = document.createElement("button");
+  noButton.className = "vote-button no";
+  noButton.type = "button";
+  noButton.dataset.choice = "no";
+  noButton.textContent = "Vote No";
+  noButton.addEventListener("click", () => submitVote(id, name, "no", card));
+
+  buttonRow.append(yesButton, noButton);
+
+  const voteState = document.createElement("p");
+  voteState.className = "scenario-vote-state";
+
+  if (storedVote) {
+    yesButton.disabled = true;
+    noButton.disabled = true;
+    voteState.textContent = `This browser already voted ${storedVote.choice.toUpperCase()} for this person.`;
+  } else {
+    voteState.textContent = "Choose yes or no.";
+  }
+
+  card.append(header, buttonRow, voteState);
+  return card;
+}
+
+function getActiveScenarios(scenariosData) {
+  const scenarios = [];
+
+  for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
+    const name = normalizeName(scenariosData?.[id]?.name);
+
+    if (name) {
+      scenarios.push({ id: String(id), name });
+    }
+  }
+
+  return scenarios;
+}
+
+function renderScenarioList(scenarios) {
+  scenarioList.replaceChildren();
+  emptyState.hidden = scenarios.length > 0;
+
+  if (!scenarios.length) {
+    setStatus("No active scenarios yet.");
+    return;
+  }
+
+  scenarios.forEach((scenario) => {
+    scenarioList.appendChild(createScenarioCard(scenario));
+  });
+
+  setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"} ready.`);
+}
 
 onValue(
-  votesRef,
+  ref(db, "scenarios"),
   (snapshot) => {
-    renderCounts(snapshot.val() || { yes: 0, no: 0 });
-
-    if (!localStorage.getItem(LOCAL_VOTE_KEY)) {
-      setStatus("Connected. Cast your vote.");
-    }
+    activeScenarios = getActiveScenarios(snapshot.val() || {});
+    renderScenarioList(activeScenarios);
   },
   (error) => {
     console.error(error);
-    setStatus("Could not read the database. Check your Firebase config and rules.", "error");
+    setStatus("Could not load scenarios. Check your Firebase config and database rules.", "error");
   }
 );

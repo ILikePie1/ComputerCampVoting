@@ -3,51 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Yes / No Voting App</title>
+  <title>Yes / No Scenario Voting</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="page-shell">
-    <section class="vote-card" aria-labelledby="poll-title">
-      <p class="eyebrow">Live poll</p>
-      <h1 id="poll-title">Do you vote yes or no?</h1>
-      <p class="subtitle">Choose one option. The totals update live from the database.</p>
+  <main class="page-shell public-shell">
+    <section class="vote-card wide-card" aria-labelledby="poll-title">
+      <p class="eyebrow">Private-results poll</p>
+      <h1 id="poll-title">Vote yes or no</h1>
+      <p class="subtitle">
+        Vote on each listed person. Current vote totals are hidden from voters and visible only to admins.
+      </p>
 
-      <div class="button-row" aria-label="Voting options">
-        <button id="yesButton" class="vote-button yes" type="button">Vote Yes</button>
-        <button id="noButton" class="vote-button no" type="button">Vote No</button>
+      <div id="emptyState" class="empty-state" hidden>
+        No voting scenarios are active yet. An admin needs to add names first.
       </div>
 
-      <p id="statusMessage" class="status" role="status" aria-live="polite">Connecting to database...</p>
+      <section id="scenarioList" class="scenario-list" aria-label="Voting scenarios"></section>
 
-      <div class="results" aria-label="Current vote results">
-        <div class="result-row">
-          <div class="result-label">
-            <span>Yes</span>
-            <strong id="yesCount">0</strong>
-          </div>
-          <div class="meter" aria-hidden="true">
-            <div id="yesBar" class="meter-fill yes-fill"></div>
-          </div>
-          <span id="yesPercent" class="percent">0%</span>
-        </div>
+      <p id="statusMessage" class="status" role="status" aria-live="polite">Loading scenarios...</p>
 
-        <div class="result-row">
-          <div class="result-label">
-            <span>No</span>
-            <strong id="noCount">0</strong>
-          </div>
-          <div class="meter" aria-hidden="true">
-            <div id="noBar" class="meter-fill no-fill"></div>
-          </div>
-          <span id="noPercent" class="percent">0%</span>
-        </div>
-      </div>
-
-      <div class="total-box">
-        <span>Total votes</span>
-        <strong id="totalCount">0</strong>
-      </div>
+      <p class="privacy-note">
+        Blank admin slots are hidden here. This public page reads scenario names only; it does not read or display vote totals.
+      </p>
     </section>
   </main>
 

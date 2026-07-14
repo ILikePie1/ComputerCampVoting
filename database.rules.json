@@ -1,10 +1,37 @@
 {
   "rules": {
-    "votes": {
+    ".read": false,
+    ".write": false,
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".write": false,
+        ".validate": "newData.isBoolean()"
+      }
+    },
+    "scenarios": {
       ".read": true,
-      "$choice": {
-        ".write": "($choice === 'yes' || $choice === 'no') && newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && newData.val() === data.val() + 1))",
-        ".validate": "newData.isNumber() && newData.val() >= 0"
+      "$scenarioId": {
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && ($scenarioId === '1' || $scenarioId === '2' || $scenarioId === '3' || $scenarioId === '4' || $scenarioId === '5' || $scenarioId === '6' || $scenarioId === '7' || $scenarioId === '8' || $scenarioId === '9' || $scenarioId === '10' || $scenarioId === '11' || $scenarioId === '12' || $scenarioId === '13' || $scenarioId === '14' || $scenarioId === '15')",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "votes": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$scenarioId": {
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && ($scenarioId === '1' || $scenarioId === '2' || $scenarioId === '3' || $scenarioId === '4' || $scenarioId === '5' || $scenarioId === '6' || $scenarioId === '7' || $scenarioId === '8' || $scenarioId === '9' || $scenarioId === '10' || $scenarioId === '11' || $scenarioId === '12' || $scenarioId === '13' || $scenarioId === '14' || $scenarioId === '15')",
+        "$choice": {
+          ".write": "($scenarioId === '1' || $scenarioId === '2' || $scenarioId === '3' || $scenarioId === '4' || $scenarioId === '5' || $scenarioId === '6' || $scenarioId === '7' || $scenarioId === '8' || $scenarioId === '9' || $scenarioId === '10' || $scenarioId === '11' || $scenarioId === '12' || $scenarioId === '13' || $scenarioId === '14' || $scenarioId === '15') && ($choice === 'yes' || $choice === 'no') && root.child('scenarios').child($scenarioId).child('name').isString() && root.child('scenarios').child($scenarioId).child('name').val().length > 0 && newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && newData.val() === data.val() + 1))",
+          ".validate": "($choice === 'yes' || $choice === 'no') && newData.isNumber() && newData.val() >= 0"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }
