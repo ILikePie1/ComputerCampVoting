@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yes / No Voting App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <section class="vote-card" aria-labelledby="poll-title">
+      <p class="eyebrow">Live poll</p>
+      <h1 id="poll-title">Do you vote yes or no?</h1>
+      <p class="subtitle">Choose one option. The totals update live from the database.</p>
+
+      <div class="button-row" aria-label="Voting options">
+        <button id="yesButton" class="vote-button yes" type="button">Vote Yes</button>
+        <button id="noButton" class="vote-button no" type="button">Vote No</button>
+      </div>
+
+      <p id="statusMessage" class="status" role="status" aria-live="polite">Connecting to database...</p>
+
+      <div class="results" aria-label="Current vote results">
+        <div class="result-row">
+          <div class="result-label">
+            <span>Yes</span>
+            <strong id="yesCount">0</strong>
+          </div>
+          <div class="meter" aria-hidden="true">
+            <div id="yesBar" class="meter-fill yes-fill"></div>
+          </div>
+          <span id="yesPercent" class="percent">0%</span>
+        </div>
+
+        <div class="result-row">
+          <div class="result-label">
+            <span>No</span>
+            <strong id="noCount">0</strong>
+          </div>
+          <div class="meter" aria-hidden="true">
+            <div id="noBar" class="meter-fill no-fill"></div>
+          </div>
+          <span id="noPercent" class="percent">0%</span>
+        </div>
+      </div>
+
+      <div class="total-box">
+        <span>Total votes</span>
+        <strong id="totalCount">0</strong>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
