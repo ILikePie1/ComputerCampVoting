@@ -1,19 +1,19 @@
-# Yes / No Voting Website - 15 Named Scenarios
+# Two-Vote Scenario Poll - 15 Named Scenarios
 
-This version supports up to 15 yes/no voting scenarios. Each scenario is a person's name.
+This version supports up to 15 voting scenarios. Each scenario is a person's name, and each public browser can vote for up to 2 scenarios total.
 
 - `index.html` is the public voting page.
 - `admin.html` is the private admin page.
 - Empty name slots are hidden from the public voting page.
-- Public users can vote yes or no for each visible person.
+- Public users see one `Vote` button per visible person/scenario.
 - Public users cannot read vote totals.
-- Admins can sign in, edit the 15 names, see live results, and reset votes for individual scenarios.
+- Admins can sign in, edit the 15 names, see live vote totals, and reset votes for individual scenarios.
 
 ## Files
 
 ```text
 index.html              Public voting page
-app.js                  Public voting logic
+app.js                  Public voting logic with a two-vote browser limit
 admin.html              Admin login, name editor, and results page
 admin.js                Admin Firebase Auth, name saving, and results logic
 firebase-config.js      Shared Firebase config used by both pages
@@ -60,20 +60,54 @@ The app uses this structure:
     "3": { "name": "Charlie" }
   },
   "votes": {
-    "1": { "yes": 4, "no": 2 },
-    "2": { "yes": 1, "no": 6 }
+    "1": { "count": 4 },
+    "2": { "count": 6 }
   }
 }
 ```
 
 Only `/scenarios` is publicly readable because voters need to see the names. `/votes` is readable only by admins.
 
-## Important voting notes
+## How the two-vote limit works
 
-The public page uses browser `localStorage` to discourage repeat voting, one vote per visible person from the same browser. This is good enough for a demo or informal poll, but it is not secure because a user can clear browser data or use another browser.
+The public page uses browser `localStorage` to remember which scenarios were voted for from that browser. After two votes, all remaining vote buttons are disabled in that browser.
 
-For a serious election, require Firebase Authentication for every voter and store votes by user ID.
+This is good enough for a demo or informal poll, but it is not secure because a user can clear browser data, use another browser, or manually call the database. For a serious election, require Firebase Authentication for every voter and store votes by user ID.
 
 ## Replacing a name after votes exist
 
-If you replace a person in a slot, the old vote totals for that slot remain until you reset them. Use the `Reset Votes` button for that scenario on the admin page before opening voting for a new person.
+If you replace a person in a slot, the old vote total for that slot remains until you reset it. Use the `Reset Votes` button for that scenario on the admin page before opening voting for a new person.
+
+## Upgrading from the previous yes/no version
+
+The old version stored votes like this:
+
+```json
+"votes": {
+  "1": { "yes": 4, "no": 2 }
+}
+```
+
+This version stores votes like this:
+
+```json
+"votes": {
+  "1": { "count": 6 }
+}
+```
+
+The admin page now reads only `count`. If your database still has old `yes` and `no` fields, use `Reset Votes` for each scenario or manually replace each scenario's vote object with `{ "count": 0 }`.
+
+## Troubleshooting: names flash, then return to "No name set"
+
+That means Firebase accepted the change locally in the browser, but the Realtime Database rules rejected the write on the server. Check that the signed-in admin user's Firebase Authentication UID is listed in the Realtime Database under `/admins/{uid}` with the boolean value `true`.
+
+Example:
+
+```json
+{
+  "admins": {
+    "PASTE_AUTH_USER_UID_HERE": true
+  }
+}
+```

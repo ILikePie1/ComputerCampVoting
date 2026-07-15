@@ -10,10 +10,8 @@ import {
   getDatabase,
   ref,
   onValue,
-  update,
   set
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
-
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -54,11 +52,6 @@ function formatNumber(value) {
   return getVoteNumber(value).toLocaleString();
 }
 
-function toPercent(part, total) {
-  if (!total) return 0;
-  return Math.round((part / total) * 100);
-}
-
 function buildNameInputs() {
   namesGrid.replaceChildren();
 
@@ -93,13 +86,26 @@ function populateNameInputs() {
   }
 }
 
+function createCountBox(label, count, helper) {
+  const box = document.createElement("div");
+  box.className = "count-box";
+
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+
+  const strong = document.createElement("strong");
+  strong.textContent = formatNumber(count);
+
+  const helperEl = document.createElement("small");
+  helperEl.textContent = helper;
+
+  box.append(labelEl, strong, helperEl);
+  return box;
+}
+
 function createResultCard(id) {
   const name = normalizeName(scenariosData?.[id]?.name);
-  const yes = getVoteNumber(votesData?.[id]?.yes);
-  const no = getVoteNumber(votesData?.[id]?.no);
-  const total = yes + no;
-  const yesPct = toPercent(yes, total);
-  const noPct = toPercent(no, total);
+  const total = getVoteNumber(votesData?.[id]?.count);
 
   const card = document.createElement("article");
   card.className = `result-card ${name ? "active" : "inactive"}`;
@@ -125,12 +131,8 @@ function createResultCard(id) {
   topRow.append(titleGroup, badge);
 
   const counts = document.createElement("div");
-  counts.className = "count-grid";
-
-  const yesBox = createCountBox("Yes", yes, `${yesPct}%`);
-  const noBox = createCountBox("No", no, `${noPct}%`);
-  const totalBox = createCountBox("Total", total, "votes");
-  counts.append(yesBox, noBox, totalBox);
+  counts.className = "count-grid single";
+  counts.append(createCountBox("Votes", total, "total"));
 
   const resetButton = document.createElement("button");
   resetButton.className = "small-button danger";
@@ -140,23 +142,6 @@ function createResultCard(id) {
 
   card.append(topRow, counts, resetButton);
   return card;
-}
-
-function createCountBox(label, count, helper) {
-  const box = document.createElement("div");
-  box.className = "count-box";
-
-  const labelEl = document.createElement("span");
-  labelEl.textContent = label;
-
-  const strong = document.createElement("strong");
-  strong.textContent = formatNumber(count);
-
-  const helperEl = document.createElement("small");
-  helperEl.textContent = helper;
-
-  box.append(labelEl, strong, helperEl);
-  return box;
 }
 
 function renderResults() {
@@ -226,16 +211,16 @@ scenarioNamesForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setStatus("Saving scenario names...");
 
-  const updates = {};
+  const saveJobs = [];
 
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
     const input = namesGrid.querySelector(`[data-scenario-id="${id}"]`);
     const name = normalizeName(input?.value);
-    updates[`scenarios/${id}/name`] = name || null;
+    saveJobs.push(set(ref(db, `scenarios/${id}/name`), name || null));
   }
 
   try {
-    await update(ref(db), updates);
+    await Promise.all(saveJobs);
     setStatus("Scenario names saved. Blank slots are hidden from voters.", "success");
   } catch (error) {
     console.error(error);
@@ -252,7 +237,7 @@ resultsGrid.addEventListener("click", async (event) => {
 
   const scenarioId = resetButton.dataset.resetVotes;
   const name = normalizeName(scenariosData?.[scenarioId]?.name) || `Scenario ${scenarioId}`;
-  const confirmed = window.confirm(`Reset YES and NO votes for ${name}?`);
+  const confirmed = window.confirm(`Reset all votes for ${name}?`);
 
   if (!confirmed) {
     return;
@@ -262,7 +247,7 @@ resultsGrid.addEventListener("click", async (event) => {
   setStatus(`Resetting votes for ${name}...`);
 
   try {
-    await set(ref(db, `votes/${scenarioId}`), { yes: 0, no: 0 });
+    await set(ref(db, `votes/${scenarioId}`), { count: 0 });
     setStatus(`Votes reset for ${name}.`, "success");
   } catch (error) {
     console.error(error);
@@ -279,7 +264,8 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     loginForm.hidden = true;
     adminPanel.hidden = false;
-    setStatus("Signed in. Loading admin data...");
+    console.log("Signed-in Firebase UID:", user.uid);
+    setStatus(`Signed in as ${user.email || "admin"}. UID: ${user.uid}. Loading admin data...`);
     startAdminListeners();
   } else {
     stopAdminListeners();
