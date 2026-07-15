@@ -213,7 +213,7 @@ function renderScenarioList(scenarios) {
   if (remainingVotes === 0) {
     setStatus(`You have used both votes in this browser. ${scenarios.length} active scenarios are available.`, "success");
   } else {
-    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. You can vote for ${pluralizeVote(remainingVotes)}.`);
+    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. You have ${pluralizeVote(remainingVotes)} remaining.`);
   }
 }
 
