@@ -53,10 +53,11 @@ function writeLocalVotes(votes) {
   }
 }
 
-function saveLocalVote(scenarioId, name) {
+function saveLocalVote(scenarioId, name, resetAt) {
   const votes = readLocalVotes();
   votes[scenarioId] = {
     name,
+    resetAt,
     votedAt: new Date().toISOString()
   };
   writeLocalVotes(votes);
@@ -68,10 +69,10 @@ function removeLocalVote(scenarioId) {
   writeLocalVotes(votes);
 }
 
-function getStoredVote(scenarioId, name) {
+function getStoredVote(scenarioId, name, resetAt = 0) {
   const storedVote = readLocalVotes()[scenarioId];
 
-  if (!storedVote || storedVote.name !== name) {
+  if (!storedVote || storedVote.name !== name || Number(storedVote.resetAt || 0) !== Number(resetAt || 0)) {
     return null;
   }
 
@@ -83,7 +84,7 @@ function getCurrentBrowserVotes(scenarios = activeScenarios) {
 
   return scenarios.filter((scenario) => {
     const storedVote = localVotes[scenario.id];
-    return storedVote && storedVote.name === scenario.name;
+    return storedVote && storedVote.name === scenario.name && Number(storedVote.resetAt || 0) === Number(scenario.resetAt || 0);
   });
 }
 
@@ -101,12 +102,12 @@ function pluralizeVote(count) {
   return `${count} vote${count === 1 ? "" : "s"}`;
 }
 
-async function toggleVote(scenarioId, name) {
+async function toggleVote(scenarioId, name, resetAt) {
   if (isSavingVote) {
     return;
   }
 
-  const storedVote = getStoredVote(scenarioId, name);
+  const storedVote = getStoredVote(scenarioId, name, resetAt);
   const isUnvoting = Boolean(storedVote);
 
   if (!isUnvoting && getRemainingVotes() <= 0) {
@@ -126,7 +127,7 @@ async function toggleVote(scenarioId, name) {
       removeLocalVote(scenarioId);
       setStatus(`Your vote for ${name} was removed. You can vote for ${pluralizeVote(getRemainingVotes())}.`, "success");
     } else {
-      saveLocalVote(scenarioId, name);
+      saveLocalVote(scenarioId, name, resetAt);
       setStatus(
         `Thanks! Your vote for ${name} was counted. You have ${pluralizeVote(getRemainingVotes())} remaining in this browser.`,
         "success"
@@ -141,8 +142,8 @@ async function toggleVote(scenarioId, name) {
   }
 }
 
-function createScenarioCard({ id, name, description }) {
-  const storedVote = getStoredVote(id, name);
+function createScenarioCard({ id, name, description, resetAt }) {
+  const storedVote = getStoredVote(id, name, resetAt);
   const usedVotes = getCurrentBrowserVotes().length;
   const remainingVotes = Math.max(0, MAX_BROWSER_VOTES - usedVotes);
   const limitReached = remainingVotes <= 0 && !storedVote;
@@ -178,7 +179,7 @@ function createScenarioCard({ id, name, description }) {
   voteButton.dataset.voteScenario = id;
   voteButton.textContent = storedVote ? "Unvote" : limitReached ? "Limit Reached" : "Vote";
   voteButton.disabled = Boolean(limitReached || isSavingVote);
-  voteButton.addEventListener("click", () => toggleVote(id, name));
+  voteButton.addEventListener("click", () => toggleVote(id, name, resetAt));
 
   buttonRow.append(voteButton);
 
@@ -197,15 +198,41 @@ function createScenarioCard({ id, name, description }) {
   return card;
 }
 
+function getResetAt(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function cleanupStaleLocalVotes(scenarios) {
+  const localVotes = readLocalVotes();
+  const activeScenarioMap = Object.fromEntries(scenarios.map((scenario) => [scenario.id, scenario]));
+  let changed = false;
+
+  Object.keys(localVotes).forEach((scenarioId) => {
+    const scenario = activeScenarioMap[scenarioId];
+    const storedVote = localVotes[scenarioId];
+
+    if (!scenario || !storedVote || storedVote.name !== scenario.name || Number(storedVote.resetAt || 0) !== Number(scenario.resetAt || 0)) {
+      delete localVotes[scenarioId];
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    writeLocalVotes(localVotes);
+  }
+}
+
 function getActiveScenarios(scenariosData) {
   const scenarios = [];
 
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
     const name = normalizeName(scenariosData?.[id]?.name);
     const description = normalizeDescription(scenariosData?.[id]?.description);
+    const resetAt = getResetAt(scenariosData?.[id]?.resetAt);
 
     if (name) {
-      scenarios.push({ id: String(id), name, description });
+      scenarios.push({ id: String(id), name, description, resetAt });
     }
   }
 
@@ -239,6 +266,7 @@ onValue(
   ref(db, "scenarios"),
   (snapshot) => {
     activeScenarios = getActiveScenarios(snapshot.val() || {});
+    cleanupStaleLocalVotes(activeScenarios);
     renderScenarioList(activeScenarios);
   },
   (error) => {

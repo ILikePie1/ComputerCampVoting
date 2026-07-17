@@ -28,6 +28,8 @@ const statusMessage = document.querySelector("#statusMessage");
 const scenarioNamesForm = document.querySelector("#scenarioNamesForm");
 const namesGrid = document.querySelector("#namesGrid");
 const resultsGrid = document.querySelector("#resultsGrid");
+const resetAllToggle = document.querySelector("#resetAllToggle");
+const resetAllButton = document.querySelector("#resetAllButton");
 
 let scenariosData = {};
 let votesData = {};
@@ -54,6 +56,17 @@ function getVoteNumber(value) {
 
 function formatNumber(value) {
   return getVoteNumber(value).toLocaleString();
+}
+
+function getNewResetToken() {
+  return Date.now();
+}
+
+async function resetScenarioVotes(scenarioId, resetToken = getNewResetToken()) {
+  await Promise.all([
+    set(ref(db, `votes/${scenarioId}`), { count: 0 }),
+    set(ref(db, `scenarios/${scenarioId}/resetAt`), resetToken)
+  ]);
 }
 
 function buildScenarioInputs() {
@@ -282,12 +295,51 @@ resultsGrid.addEventListener("click", async (event) => {
   setStatus(`Resetting votes for ${name}...`);
 
   try {
-    await set(ref(db, `votes/${scenarioId}`), { count: 0 });
-    setStatus(`Votes reset for ${name}.`, "success");
+    await resetScenarioVotes(scenarioId);
+    setStatus(`Votes reset for ${name}. Voters can use that vote again.`, "success");
   } catch (error) {
     console.error(error);
     resetButton.disabled = false;
     setStatus("Could not reset votes. Make sure this user UID is in /admins.", "error");
+  }
+});
+
+resetAllToggle.addEventListener("change", () => {
+  resetAllButton.disabled = !resetAllToggle.checked;
+});
+
+resetAllButton.addEventListener("click", async () => {
+  if (!resetAllToggle.checked) {
+    return;
+  }
+
+  const confirmed = window.confirm("Reset all votes for all 15 scenarios? This will let browsers vote for up to 2 scenarios again.");
+
+  if (!confirmed) {
+    return;
+  }
+
+  resetAllButton.disabled = true;
+  resetAllToggle.disabled = true;
+  setStatus("Resetting all votes...");
+
+  try {
+    const resetToken = getNewResetToken();
+    const resetJobs = [];
+
+    for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
+      resetJobs.push(resetScenarioVotes(String(id), resetToken));
+    }
+
+    await Promise.all(resetJobs);
+    resetAllToggle.checked = false;
+    setStatus("All votes were reset. Voters can vote for up to 2 scenarios again.", "success");
+  } catch (error) {
+    console.error(error);
+    setStatus("Could not reset all votes. Make sure this user UID is in /admins.", "error");
+  } finally {
+    resetAllToggle.disabled = false;
+    resetAllButton.disabled = true;
   }
 });
 
@@ -310,6 +362,9 @@ onAuthStateChanged(auth, (user) => {
     renderResults();
     loginForm.hidden = false;
     adminPanel.hidden = true;
+    resetAllToggle.checked = false;
+    resetAllToggle.disabled = false;
+    resetAllButton.disabled = true;
     setStatus("Not signed in.");
   }
 });

@@ -8,7 +8,7 @@ Each public browser can vote for up to 2 visible scenarios total. After voting f
 - `admin.html` is the private admin page.
 - Empty name slots are hidden from the public voting page.
 - Public users can see names and descriptions, but not vote totals.
-- Admins can sign in, edit the 15 names/descriptions, see live vote totals, and reset votes for individual scenarios.
+- Admins can sign in, edit the 15 names/descriptions, see live vote totals, reset votes for individual scenarios, and unlock a reset-all option.
 
 ## Files
 
@@ -16,7 +16,7 @@ Each public browser can vote for up to 2 visible scenarios total. After voting f
 index.html              Public voting page
 app.js                  Public voting and unvote logic with a two-vote browser limit
 admin.html              Admin login, scenario editor, and results page
-admin.js                Admin Firebase Auth, detail saving, and results logic
+admin.js                Admin Firebase Auth, detail saving, results, individual reset, and reset-all logic
 firebase-config.js      Shared Firebase config used by both pages
 style.css               Shared styling
 database.rules.json     Firebase Realtime Database security rules
@@ -58,7 +58,8 @@ The app uses this structure:
   "scenarios": {
     "1": {
       "name": "Alice",
-      "description": "Captain of the debate team."
+      "description": "Captain of the debate team.",
+      "resetAt": 1721000000000
     },
     "2": {
       "name": "Bob",
@@ -82,6 +83,18 @@ When a user clicks `Unvote`, the app subtracts 1 from that scenario's count and 
 
 This is good enough for a demo or informal poll, but it is not secure because a user can clear browser data, use another browser, or manually call the database. For a serious election, require Firebase Authentication for every voter and store votes by user ID.
 
+
+## Resetting votes and browser vote limits
+
+Admins can reset votes in two ways:
+
+- Use `Reset Votes` on one scenario to reset that scenario only.
+- Turn on `Enable reset all votes`, then click `Reset All Votes` to reset all 15 scenarios.
+
+Every reset also updates a public `resetAt` token for the affected scenario. The public page compares that token against the browser's saved local votes. When the token changes, stale saved votes are cleared automatically, so voters get that vote slot back.
+
+For example, if a browser voted for Alice and Bob and Alice is reset, that browser will be able to vote for one more scenario again. If all votes are reset, that browser can vote for up to 2 scenarios again.
+
 ## Replacing a name after votes exist
 
 If you replace a person in a slot, the old vote total for that slot remains until you reset it. Use the `Reset Votes` button for that scenario before opening voting for a new person.
@@ -96,13 +109,14 @@ This version keeps the same vote format:
 }
 ```
 
-It adds an optional description field:
+It adds an optional description field and a reset token:
 
 ```json
 "scenarios": {
   "1": {
     "name": "Alice",
-    "description": "Short description here."
+    "description": "Short description here.",
+    "resetAt": 1721000000000
   }
 }
 ```

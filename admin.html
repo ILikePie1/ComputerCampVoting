@@ -52,6 +52,15 @@
           </div>
 
           <div id="resultsGrid" class="results-grid" aria-live="polite"></div>
+
+          <div class="reset-all-panel">
+            <label class="toggle-row">
+              <input id="resetAllToggle" type="checkbox" />
+              <span>Enable reset all votes</span>
+            </label>
+            <button id="resetAllButton" class="admin-button danger" type="button" disabled>Reset All Votes</button>
+            <p class="reset-help">Turning this on unlocks the reset-all button. Resetting votes also clears each browser's saved vote choices the next time the public page loads or updates.</p>
+          </div>
         </div>
 
         <button id="signOutButton" class="admin-button secondary" type="button">Sign Out</button>
