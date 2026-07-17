@@ -334,7 +334,7 @@ resetAllButton.addEventListener("click", async () => {
     return;
   }
 
-  const confirmed = window.confirm("Reset all votes for all 15 scenarios? This will let browsers vote for up to 2 scenarios again.");
+  const confirmed = window.confirm("Reset all votes for all 15 participants? This will let browsers vote for up to 2 participants again.");
 
   if (!confirmed) {
     return;
@@ -354,7 +354,7 @@ resetAllButton.addEventListener("click", async () => {
 
     await Promise.all(resetJobs);
     resetAllToggle.checked = false;
-    setStatus("All votes were reset. Voters can vote for up to 2 scenarios again.", "success");
+    setStatus("All votes were reset. Voters can vote for up to 2 participants again.", "success");
   } catch (error) {
     console.error(error);
     setStatus("Could not reset all votes. Make sure this user UID is in /admins.", "error");
