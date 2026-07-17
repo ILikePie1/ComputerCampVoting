@@ -12,7 +12,7 @@
     <section class="vote-card admin-card" aria-labelledby="admin-title">
       <p class="eyebrow">Admin Only 🎲</p>
       <h1 id="admin-title">Camp Counselors</h1>
-      <p class="subtitle">Sign in to edit up to 15 person/scenario names and view live vote totals.</p>
+      <p class="subtitle">Sign in to edit up to 15 person/scenario names, add short descriptions, and view live vote totals.</p>
 
       <form id="adminLoginForm" class="admin-form">
         <label>
@@ -32,14 +32,14 @@
         <div class="admin-section">
           <div class="section-heading">
             <div>
-              <h2>Participant Names</h2>
-              <p>Enter one person's name per slot. Leave a slot blank to hide it from voters.</p>
+              <h2>Participant Details</h2>
+              <p>Enter one person's name and an optional short description per slot. Leave a name blank to hide that slot from voters.</p>
             </div>
           </div>
 
           <form id="scenarioNamesForm" class="names-form">
             <div id="namesGrid" class="names-grid"></div>
-            <button class="admin-button" type="submit">Save Names</button>
+            <button class="admin-button" type="submit">Save Details</button>
           </form>
         </div>
 
@@ -47,7 +47,7 @@
           <div class="section-heading">
             <div>
               <h2>Live results</h2>
-              <p>Only signed-in counselors can read these totals.</p>
+              <p>Only signed-in counselors can read these totals. Each scenario has one net vote count; unvotes subtract from it.</p>
             </div>
           </div>
 

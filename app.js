@@ -31,26 +31,41 @@ function normalizeName(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeDescription(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function readLocalVotes() {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_VOTES_KEY)) || {};
+    const storedVotes = JSON.parse(localStorage.getItem(LOCAL_VOTES_KEY)) || {};
+    return typeof storedVotes === "object" && !Array.isArray(storedVotes) ? storedVotes : {};
   } catch (error) {
     console.warn("Could not read local vote lock.", error);
     return {};
   }
 }
 
-function saveLocalVote(scenarioId, name) {
+function writeLocalVotes(votes) {
   try {
-    const votes = readLocalVotes();
-    votes[scenarioId] = {
-      name,
-      votedAt: new Date().toISOString()
-    };
     localStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(votes));
   } catch (error) {
     console.warn("Could not save local vote lock.", error);
   }
+}
+
+function saveLocalVote(scenarioId, name) {
+  const votes = readLocalVotes();
+  votes[scenarioId] = {
+    name,
+    votedAt: new Date().toISOString()
+  };
+  writeLocalVotes(votes);
+}
+
+function removeLocalVote(scenarioId) {
+  const votes = readLocalVotes();
+  delete votes[scenarioId];
+  writeLocalVotes(votes);
 }
 
 function getStoredVote(scenarioId, name) {
@@ -86,56 +101,54 @@ function pluralizeVote(count) {
   return `${count} vote${count === 1 ? "" : "s"}`;
 }
 
-async function submitVote(scenarioId, name, card) {
+async function toggleVote(scenarioId, name) {
   if (isSavingVote) {
     return;
   }
 
   const storedVote = getStoredVote(scenarioId, name);
+  const isUnvoting = Boolean(storedVote);
 
-  if (storedVote) {
-    setStatus(`This browser already voted for ${name}.`, "success");
-    return;
-  }
-
-  const remainingBeforeVote = getRemainingVotes();
-
-  if (remainingBeforeVote <= 0) {
-    setStatus("This browser has already used both votes.", "error");
+  if (!isUnvoting && getRemainingVotes() <= 0) {
+    setStatus("This browser has already used both votes. Unvote one scenario before voting for another.", "error");
     renderScenarioList(activeScenarios);
     return;
   }
 
   isSavingVote = true;
   setAllVoteButtonsDisabled(true);
-  setStatus(`Saving your vote for ${name}...`);
+  setStatus(isUnvoting ? `Removing your vote for ${name}...` : `Saving your vote for ${name}...`);
 
   try {
-    await set(ref(db, `votes/${scenarioId}/count`), increment(1));
+    await set(ref(db, `votes/${scenarioId}/count`), increment(isUnvoting ? -1 : 1));
 
-    saveLocalVote(scenarioId, name);
-    const remainingAfterVote = getRemainingVotes();
-    setStatus(
-      `Thanks! Your vote for ${name} was counted. You have ${pluralizeVote(remainingAfterVote)} remaining in this browser.`,
-      "success"
-    );
+    if (isUnvoting) {
+      removeLocalVote(scenarioId);
+      setStatus(`Your vote for ${name} was removed. You can vote for ${pluralizeVote(getRemainingVotes())}.`, "success");
+    } else {
+      saveLocalVote(scenarioId, name);
+      setStatus(
+        `Thanks! Your vote for ${name} was counted. You have ${pluralizeVote(getRemainingVotes())} remaining in this browser.`,
+        "success"
+      );
+    }
   } catch (error) {
     console.error(error);
-    setStatus("Vote could not be saved. Check your Firebase config and database rules.", "error");
+    setStatus("Vote change could not be saved. Check your Firebase config and database rules.", "error");
   } finally {
     isSavingVote = false;
     renderScenarioList(activeScenarios);
   }
 }
 
-function createScenarioCard({ id, name }) {
+function createScenarioCard({ id, name, description }) {
   const storedVote = getStoredVote(id, name);
   const usedVotes = getCurrentBrowserVotes().length;
   const remainingVotes = Math.max(0, MAX_BROWSER_VOTES - usedVotes);
   const limitReached = remainingVotes <= 0 && !storedVote;
 
   const card = document.createElement("article");
-  card.className = "scenario-card";
+  card.className = `scenario-card ${storedVote ? "selected" : ""}`.trim();
 
   const header = document.createElement("div");
   header.className = "scenario-header";
@@ -152,16 +165,20 @@ function createScenarioCard({ id, name }) {
   titleGroup.append(meta, title);
   header.append(titleGroup);
 
+  const descriptionEl = document.createElement("p");
+  descriptionEl.className = "scenario-description";
+  descriptionEl.textContent = description || "No description provided.";
+
   const buttonRow = document.createElement("div");
   buttonRow.className = "button-row single";
 
   const voteButton = document.createElement("button");
-  voteButton.className = "vote-button vote";
+  voteButton.className = `vote-button ${storedVote ? "unvote" : "vote"}`;
   voteButton.type = "button";
   voteButton.dataset.voteScenario = id;
-  voteButton.textContent = storedVote ? "Voted" : limitReached ? "Limit Reached" : "Vote";
-  voteButton.disabled = Boolean(storedVote || limitReached || isSavingVote);
-  voteButton.addEventListener("click", () => submitVote(id, name, card));
+  voteButton.textContent = storedVote ? "Unvote" : limitReached ? "Limit Reached" : "Vote";
+  voteButton.disabled = Boolean(limitReached || isSavingVote);
+  voteButton.addEventListener("click", () => toggleVote(id, name));
 
   buttonRow.append(voteButton);
 
@@ -169,14 +186,14 @@ function createScenarioCard({ id, name }) {
   voteState.className = "scenario-vote-state";
 
   if (storedVote) {
-    voteState.textContent = "You already voted for this scenario.";
+    voteState.textContent = "This browser voted for this scenario. Press Unvote to remove it.";
   } else if (limitReached) {
-    voteState.textContent = "You have used both available votes.";
+    voteState.textContent = "This browser has used both votes. Unvote another scenario to vote here.";
   } else {
-    voteState.textContent = `You have ${pluralizeVote(remainingVotes)} remaining.`;
+    voteState.textContent = `You can still vote for ${pluralizeVote(remainingVotes)}.`;
   }
 
-  card.append(header, buttonRow, voteState);
+  card.append(header, descriptionEl, buttonRow, voteState);
   return card;
 }
 
@@ -185,9 +202,10 @@ function getActiveScenarios(scenariosData) {
 
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
     const name = normalizeName(scenariosData?.[id]?.name);
+    const description = normalizeDescription(scenariosData?.[id]?.description);
 
     if (name) {
-      scenarios.push({ id: String(id), name });
+      scenarios.push({ id: String(id), name, description });
     }
   }
 
@@ -211,9 +229,9 @@ function renderScenarioList(scenarios) {
   const remainingVotes = Math.max(0, MAX_BROWSER_VOTES - usedVotes);
 
   if (remainingVotes === 0) {
-    setStatus(`You have used both votes in this browser. ${scenarios.length} active scenarios are available.`, "success");
+    setStatus(`You have used both votes in this browser. You can unvote a scenario to change your choices.`, "success");
   } else {
-    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. You have ${pluralizeVote(remainingVotes)} remaining.`);
+    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. You can vote for ${pluralizeVote(remainingVotes)}.`);
   }
 }
 

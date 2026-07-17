@@ -43,6 +43,10 @@ function normalizeName(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeDescription(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function getVoteNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
@@ -52,36 +56,58 @@ function formatNumber(value) {
   return getVoteNumber(value).toLocaleString();
 }
 
-function buildNameInputs() {
+function buildScenarioInputs() {
   namesGrid.replaceChildren();
 
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
-    const label = document.createElement("label");
-    label.className = "name-input-row";
-    label.htmlFor = `scenarioName${id}`;
+    const row = document.createElement("div");
+    row.className = "name-input-row";
 
-    const span = document.createElement("span");
-    span.textContent = `Scenario ${id}`;
+    const heading = document.createElement("span");
+    heading.textContent = `Scenario ${id}`;
 
-    const input = document.createElement("input");
-    input.id = `scenarioName${id}`;
-    input.name = `scenarioName${id}`;
-    input.dataset.scenarioId = String(id);
-    input.type = "text";
-    input.maxLength = 80;
-    input.placeholder = "Person's name";
+    const nameLabel = document.createElement("label");
+    nameLabel.htmlFor = `scenarioName${id}`;
+    nameLabel.textContent = "Name";
 
-    label.append(span, input);
-    namesGrid.appendChild(label);
+    const nameInput = document.createElement("input");
+    nameInput.id = `scenarioName${id}`;
+    nameInput.name = `scenarioName${id}`;
+    nameInput.dataset.scenarioId = String(id);
+    nameInput.dataset.field = "name";
+    nameInput.type = "text";
+    nameInput.maxLength = 80;
+    nameInput.placeholder = "Person's name";
+
+    const descriptionLabel = document.createElement("label");
+    descriptionLabel.htmlFor = `scenarioDescription${id}`;
+    descriptionLabel.textContent = "Short description";
+
+    const descriptionInput = document.createElement("textarea");
+    descriptionInput.id = `scenarioDescription${id}`;
+    descriptionInput.name = `scenarioDescription${id}`;
+    descriptionInput.dataset.scenarioId = String(id);
+    descriptionInput.dataset.field = "description";
+    descriptionInput.maxLength = 240;
+    descriptionInput.rows = 3;
+    descriptionInput.placeholder = "Optional short description";
+
+    row.append(heading, nameLabel, nameInput, descriptionLabel, descriptionInput);
+    namesGrid.appendChild(row);
   }
 }
 
-function populateNameInputs() {
+function populateScenarioInputs() {
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
-    const input = namesGrid.querySelector(`[data-scenario-id="${id}"]`);
+    const nameInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="name"]`);
+    const descriptionInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="description"]`);
 
-    if (input && document.activeElement !== input) {
-      input.value = normalizeName(scenariosData?.[id]?.name);
+    if (nameInput && document.activeElement !== nameInput) {
+      nameInput.value = normalizeName(scenariosData?.[id]?.name);
+    }
+
+    if (descriptionInput && document.activeElement !== descriptionInput) {
+      descriptionInput.value = normalizeDescription(scenariosData?.[id]?.description);
     }
   }
 }
@@ -105,6 +131,7 @@ function createCountBox(label, count, helper) {
 
 function createResultCard(id) {
   const name = normalizeName(scenariosData?.[id]?.name);
+  const description = normalizeDescription(scenariosData?.[id]?.description);
   const total = getVoteNumber(votesData?.[id]?.count);
 
   const card = document.createElement("article");
@@ -122,7 +149,11 @@ function createResultCard(id) {
   const title = document.createElement("h3");
   title.textContent = name || "No name set";
 
-  titleGroup.append(meta, title);
+  const descriptionEl = document.createElement("p");
+  descriptionEl.className = "result-description";
+  descriptionEl.textContent = description || "No description set.";
+
+  titleGroup.append(meta, title, descriptionEl);
 
   const badge = document.createElement("span");
   badge.className = `visibility-badge ${name ? "visible" : "hidden-slot"}`;
@@ -132,7 +163,7 @@ function createResultCard(id) {
 
   const counts = document.createElement("div");
   counts.className = "count-grid single";
-  counts.append(createCountBox("Votes", total, "total"));
+  counts.append(createCountBox("Votes", total, "net total"));
 
   const resetButton = document.createElement("button");
   resetButton.className = "small-button danger";
@@ -159,12 +190,12 @@ function startAdminListeners() {
     ref(db, "scenarios"),
     (snapshot) => {
       scenariosData = snapshot.val() || {};
-      populateNameInputs();
+      populateScenarioInputs();
       renderResults();
     },
     (error) => {
       console.error(error);
-      setStatus("Could not read scenario names. Check database rules.", "error");
+      setStatus("Could not read scenario names/descriptions. Check database rules.", "error");
     }
   );
 
@@ -209,22 +240,26 @@ loginForm.addEventListener("submit", async (event) => {
 
 scenarioNamesForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setStatus("Saving scenario names...");
+  setStatus("Saving scenario details...");
 
   const saveJobs = [];
 
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
-    const input = namesGrid.querySelector(`[data-scenario-id="${id}"]`);
-    const name = normalizeName(input?.value);
+    const nameInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="name"]`);
+    const descriptionInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="description"]`);
+    const name = normalizeName(nameInput?.value);
+    const description = normalizeDescription(descriptionInput?.value);
+
     saveJobs.push(set(ref(db, `scenarios/${id}/name`), name || null));
+    saveJobs.push(set(ref(db, `scenarios/${id}/description`), description || null));
   }
 
   try {
     await Promise.all(saveJobs);
-    setStatus("Scenario names saved. Blank slots are hidden from voters.", "success");
+    setStatus("Scenario details saved. Blank name slots are hidden from voters.", "success");
   } catch (error) {
     console.error(error);
-    setStatus("Could not save scenario names. Make sure this user UID is in /admins.", "error");
+    setStatus("Could not save scenario details. Make sure this user UID is in /admins and rules are published.", "error");
   }
 });
 
@@ -271,7 +306,7 @@ onAuthStateChanged(auth, (user) => {
     stopAdminListeners();
     scenariosData = {};
     votesData = {};
-    populateNameInputs();
+    populateScenarioInputs();
     renderResults();
     loginForm.hidden = false;
     adminPanel.hidden = true;
@@ -279,5 +314,5 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-buildNameInputs();
+buildScenarioInputs();
 renderResults();
