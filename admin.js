@@ -35,6 +35,7 @@ let scenariosData = {};
 let votesData = {};
 let unsubscribeScenarios = null;
 let unsubscribeVotes = null;
+let isSavingScenarioDetails = false;
 
 function setStatus(message, type = "") {
   statusMessage.textContent = message;
@@ -64,7 +65,7 @@ function getNewResetToken() {
 
 async function resetScenarioVotes(scenarioId, resetToken = getNewResetToken()) {
   await Promise.all([
-    set(ref(db, `votes/${scenarioId}`), { count: 0 }),
+    set(ref(db, `votes/${scenarioId}/count`), 0),
     set(ref(db, `scenarios/${scenarioId}/resetAt`), resetToken)
   ]);
 }
@@ -111,6 +112,10 @@ function buildScenarioInputs() {
 }
 
 function populateScenarioInputs() {
+  if (isSavingScenarioDetails) {
+    return;
+  }
+
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
     const nameInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="name"]`);
     const descriptionInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="description"]`);
@@ -255,24 +260,40 @@ scenarioNamesForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setStatus("Saving scenario details...");
 
-  const saveJobs = [];
+  const scenarioDetails = [];
 
+  // First capture every value from the form before any Firebase write starts.
+  // This prevents live database listeners from repopulating later fields with
+  // old values while multiple names/descriptions are being saved.
   for (let id = 1; id <= MAX_SCENARIOS; id += 1) {
     const nameInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="name"]`);
     const descriptionInput = namesGrid.querySelector(`[data-scenario-id="${id}"][data-field="description"]`);
-    const name = normalizeName(nameInput?.value);
-    const description = normalizeDescription(descriptionInput?.value);
 
-    saveJobs.push(set(ref(db, `scenarios/${id}/name`), name || null));
-    saveJobs.push(set(ref(db, `scenarios/${id}/description`), description || null));
+    scenarioDetails.push({
+      id: String(id),
+      name: normalizeName(nameInput?.value),
+      description: normalizeDescription(descriptionInput?.value)
+    });
   }
 
+  isSavingScenarioDetails = true;
+
   try {
+    const saveJobs = [];
+
+    for (const detail of scenarioDetails) {
+      saveJobs.push(set(ref(db, `scenarios/${detail.id}/name`), detail.name || null));
+      saveJobs.push(set(ref(db, `scenarios/${detail.id}/description`), detail.description || null));
+    }
+
     await Promise.all(saveJobs);
     setStatus("Scenario details saved. Blank name slots are hidden from voters.", "success");
   } catch (error) {
     console.error(error);
     setStatus("Could not save scenario details. Make sure this user UID is in /admins and rules are published.", "error");
+  } finally {
+    isSavingScenarioDetails = false;
+    populateScenarioInputs();
   }
 });
 
