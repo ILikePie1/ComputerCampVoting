@@ -143,6 +143,7 @@ h3 {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .scenario-meta {
