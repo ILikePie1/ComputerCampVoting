@@ -204,11 +204,11 @@ function createScenarioCard({ id, name, description, resetAt }) {
   voteState.className = "scenario-vote-state";
 
   if (storedVote) {
-    voteState.textContent = "This browser voted for this scenario. Press Unvote to remove it.";
+    voteState.textContent = "Voted! Press Unvote to remove it.";
   } else if (limitReached) {
-    voteState.textContent = `This user has used ${pluralizeVote(maxBrowserVotes)}. Unvote another scenario to vote here.`;
+    voteState.textContent = `This user has used ${pluralizeVote(maxBrowserVotes)}. Unvote another participant to vote here.`;
   } else {
-    voteState.textContent = `You can still vote for ${pluralizeVote(remainingVotes)}.`;
+    voteState.textContent = `You still have ${pluralizeVote(remainingVotes)}.`;
   }
 
   card.append(header, descriptionEl, buttonRow, voteState);
