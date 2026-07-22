@@ -12,7 +12,9 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 const MAX_SCENARIOS = 15;
-const MAX_BROWSER_VOTES = 2;
+const DEFAULT_MAX_BROWSER_VOTES = 2;
+const MIN_BROWSER_VOTES = 1;
+const MAX_BROWSER_VOTES = 4;
 const LOCAL_VOTES_KEY = "two-scenario-votes-v1";
 
 const scenarioList = document.querySelector("#scenarioList");
@@ -21,6 +23,7 @@ const statusMessage = document.querySelector("#statusMessage");
 
 let activeScenarios = [];
 let isSavingVote = false;
+let maxBrowserVotes = DEFAULT_MAX_BROWSER_VOTES;
 
 function setStatus(message, type = "") {
   statusMessage.textContent = message;
@@ -88,8 +91,22 @@ function getCurrentBrowserVotes(scenarios = activeScenarios) {
   });
 }
 
-function getRemainingVotes() {
-  return Math.max(0, MAX_BROWSER_VOTES - getCurrentBrowserVotes().length);
+function getAllowedVoteCount(value) {
+  if (value === null || value === undefined) {
+    return DEFAULT_MAX_BROWSER_VOTES;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isInteger(number)) {
+    return DEFAULT_MAX_BROWSER_VOTES;
+  }
+
+  return Math.min(MAX_BROWSER_VOTES, Math.max(MIN_BROWSER_VOTES, number));
+}
+
+function getRemainingVotes(scenarios = activeScenarios) {
+  return Math.max(0, maxBrowserVotes - getCurrentBrowserVotes(scenarios).length);
 }
 
 function setAllVoteButtonsDisabled(disabled) {
@@ -111,7 +128,7 @@ async function toggleVote(scenarioId, name, resetAt) {
   const isUnvoting = Boolean(storedVote);
 
   if (!isUnvoting && getRemainingVotes() <= 0) {
-    setStatus("This browser has already used both votes. Unvote one scenario before voting for another.", "error");
+    setStatus(`This user has already used ${pluralizeVote(maxBrowserVotes)}. Unvote one scenario before voting for another.`, "error");
     renderScenarioList(activeScenarios);
     return;
   }
@@ -145,7 +162,7 @@ async function toggleVote(scenarioId, name, resetAt) {
 function createScenarioCard({ id, name, description, resetAt }) {
   const storedVote = getStoredVote(id, name, resetAt);
   const usedVotes = getCurrentBrowserVotes().length;
-  const remainingVotes = Math.max(0, MAX_BROWSER_VOTES - usedVotes);
+  const remainingVotes = Math.max(0, maxBrowserVotes - usedVotes);
   const limitReached = remainingVotes <= 0 && !storedVote;
 
   const card = document.createElement("article");
@@ -189,7 +206,7 @@ function createScenarioCard({ id, name, description, resetAt }) {
   if (storedVote) {
     voteState.textContent = "This browser voted for this scenario. Press Unvote to remove it.";
   } else if (limitReached) {
-    voteState.textContent = "This browser has used both votes. Unvote another scenario to vote here.";
+    voteState.textContent = `This user has used ${pluralizeVote(maxBrowserVotes)}. Unvote another scenario to vote here.`;
   } else {
     voteState.textContent = `You can still vote for ${pluralizeVote(remainingVotes)}.`;
   }
@@ -253,14 +270,29 @@ function renderScenarioList(scenarios) {
   });
 
   const usedVotes = getCurrentBrowserVotes(scenarios).length;
-  const remainingVotes = Math.max(0, MAX_BROWSER_VOTES - usedVotes);
+  const remainingVotes = Math.max(0, maxBrowserVotes - usedVotes);
 
-  if (remainingVotes === 0) {
-    setStatus(`You have used both votes in this browser. You can unvote a scenario to change your choices.`, "success");
+  if (usedVotes > maxBrowserVotes) {
+    setStatus(`This browser has ${pluralizeVote(usedVotes)} selected, but the current limit is ${pluralizeVote(maxBrowserVotes)}. Unvote until you are within the limit.`, "error");
+  } else if (remainingVotes === 0) {
+    setStatus(`You have used ${pluralizeVote(maxBrowserVotes)} in this browser. You can unvote a scenario to change your choices.`, "success");
   } else {
-    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. You can vote for ${pluralizeVote(remainingVotes)}.`);
+    setStatus(`${scenarios.length} active scenario${scenarios.length === 1 ? "" : "s"}. The current limit is ${pluralizeVote(maxBrowserVotes)} per browser. You can vote for ${pluralizeVote(remainingVotes)}.`);
   }
 }
+
+onValue(
+  ref(db, "settings/maxVotesPerBrowser"),
+  (snapshot) => {
+    maxBrowserVotes = getAllowedVoteCount(snapshot.val());
+    renderScenarioList(activeScenarios);
+  },
+  (error) => {
+    console.error(error);
+    maxBrowserVotes = DEFAULT_MAX_BROWSER_VOTES;
+    renderScenarioList(activeScenarios);
+  }
+);
 
 onValue(
   ref(db, "scenarios"),

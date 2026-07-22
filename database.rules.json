@@ -1,46 +1,55 @@
 {
-  "rules": {
-    ".read": false,
-    ".write": false,
-    "admins": {
-      "$uid": {
-        ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+    "rules": {
+        ".read": false,
         ".write": false,
-        ".validate": "newData.isBoolean()"
-      }
-    },
-    "scenarios": {
-      ".read": true,
-      "$scenarioId": {
-        "name": {
-          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
-          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 80)"
+        "admins": {
+            "$uid": {
+                ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+                ".write": false,
+                ".validate": "newData.isBoolean()"
+            }
         },
-        "description": {
-          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
-          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 240)"
+        "scenarios": {
+            ".read": true,
+            "$scenarioId": {
+                "name": {
+                    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
+                    ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 80)"
+                },
+                "description": {
+                    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
+                    ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 240)"
+                },
+                "resetAt": {
+                    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
+                    ".validate": "newData.isNumber() && newData.val() >= 0"
+                },
+                "$other": {
+                    ".validate": false
+                }
+            }
         },
-        "resetAt": {
-          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
-          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0)"
+        "settings": {
+            ".read": true,
+            "maxVotesPerBrowser": {
+                ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+                ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 2 || newData.val() === 3 || newData.val() === 4)"
+            },
+            "$other": {
+                ".validate": false
+            }
         },
-        "$other": {
-          ".validate": false
+        "votes": {
+            ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+            "$scenarioId": {
+                "count": {
+                    ".write": "$scenarioId.matches(/^([1-9]|1[0-5])$/) && ((auth != null && root.child('admins').child(auth.uid).val() === true) || (root.child('scenarios').child($scenarioId).child('name').isString() && root.child('scenarios').child($scenarioId).child('name').val().length > 0 && newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && (newData.val() === data.val() + 1 || (data.val() > 0 && newData.val() === data.val() - 1))))))",
+                    ".validate": "newData.isNumber() && newData.val() >= 0"
+                },
+                "$other": {
+                    ".validate": false
+                }
+            }
         }
-      }
-    },
-    "votes": {
-      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
-      "$scenarioId": {
-        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true && $scenarioId.matches(/^([1-9]|1[0-5])$/)",
-        "count": {
-          ".write": "$scenarioId.matches(/^([1-9]|1[0-5])$/) && ((auth != null && root.child('admins').child(auth.uid).val() === true) || (root.child('scenarios').child($scenarioId).child('name').isString() && root.child('scenarios').child($scenarioId).child('name').val().length > 0 && newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && (newData.val() === data.val() + 1 || (data.val() > 0 && newData.val() === data.val() - 1))))))",
-          ".validate": "newData.isNumber() && newData.val() >= 0"
-        },
-        "$other": {
-          ".validate": false
-        }
-      }
     }
-  }
 }

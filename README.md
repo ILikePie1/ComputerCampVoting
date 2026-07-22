@@ -1,22 +1,22 @@
-# Two-Vote Scenario Poll - Descriptions and Unvote
+# Scenario Poll - Admin Vote Limit, Descriptions, and Unvote
 
 This version supports up to 15 voting scenarios. Each scenario has a person's name, an optional short description, and one public `Vote` button.
 
-Each public browser can vote for up to 2 visible scenarios total. After voting for a scenario, that scenario's button changes to `Unvote`, allowing the browser to remove that vote and choose another scenario.
+Each public browser can vote for up to the admin-selected limit, from 1 to 4 visible scenarios total. After voting for a scenario, that scenario's button changes to `Unvote`, allowing the browser to remove that vote and choose another scenario.
 
 - `index.html` is the public voting page.
 - `admin.html` is the private admin page.
 - Empty name slots are hidden from the public voting page.
 - Public users can see names and descriptions, but not vote totals.
-- Admins can sign in, edit the 15 names/descriptions, see live vote totals, reset votes for individual scenarios, and unlock a reset-all option.
+- Admins can sign in, edit the 15 names/descriptions, set the votes-per-browser limit from 1 to 4, see live vote totals, reset votes for individual scenarios, and unlock a reset-all option.
 
 ## Files
 
 ```text
 index.html              Public voting page
-app.js                  Public voting and unvote logic with a two-vote browser limit
+app.js                  Public voting and unvote logic with an admin-controlled browser vote limit
 admin.html              Admin login, scenario editor, and results page
-admin.js                Admin Firebase Auth, detail saving, results, individual reset, and reset-all logic
+admin.js                Admin Firebase Auth, detail saving, vote-limit slider, results, individual reset, and reset-all logic
 firebase-config.js      Shared Firebase config used by both pages
 style.css               Shared styling
 database.rules.json     Firebase Realtime Database security rules
@@ -43,7 +43,7 @@ README.md               Setup notes
 ```
 
 9. In Realtime Database > Rules, paste the contents of `database.rules.json` and publish.
-10. Open `admin.html`, sign in, and enter up to 15 names and descriptions.
+10. Open `admin.html`, sign in, enter up to 15 names/descriptions, and set the vote limit slider from 1 to 4.
 11. Open `index.html` to vote.
 
 ## Database structure
@@ -66,6 +66,9 @@ The app uses this structure:
       "description": "Volunteers at every school event."
     }
   },
+  "settings": {
+    "maxVotesPerBrowser": 2
+  },
   "votes": {
     "1": { "count": 4 },
     "2": { "count": 6 }
@@ -75,9 +78,11 @@ The app uses this structure:
 
 Only `/scenarios` is publicly readable because voters need to see names and descriptions. `/votes` is readable only by admins.
 
-## How the two-vote limit and unvote work
+## How the browser vote limit and unvote work
 
-The public page uses browser `localStorage` to remember which scenarios were voted for from that browser. After two votes, all remaining unselected vote buttons are disabled. Buttons for already selected scenarios stay enabled as `Unvote` buttons.
+The public page reads `/settings/maxVotesPerBrowser`, which admins can set from 1 to 4 with a slider. If that setting does not exist yet, the public page uses 2 as the default.
+
+The public page uses browser `localStorage` to remember which scenarios were voted for from that browser. After the current limit is reached, all remaining unselected vote buttons are disabled. Buttons for already selected scenarios stay enabled as `Unvote` buttons.
 
 When a user clicks `Unvote`, the app subtracts 1 from that scenario's count and removes that scenario from the browser's local vote list.
 
@@ -93,7 +98,7 @@ Admins can reset votes in two ways:
 
 Every reset also updates a public `resetAt` token for the affected scenario. The public page compares that token against the browser's saved local votes. When the token changes, stale saved votes are cleared automatically, so voters get that vote slot back.
 
-For example, if a browser voted for Alice and Bob and Alice is reset, that browser will be able to vote for one more scenario again. If all votes are reset, that browser can vote for up to 2 scenarios again.
+For example, if a browser voted for Alice and Bob and Alice is reset, that browser will be able to vote for one more scenario again. If all votes are reset, that browser can vote up to the current admin-selected limit again.
 
 ## Replacing a name after votes exist
 
@@ -121,7 +126,7 @@ It adds an optional description field and a reset token:
 }
 ```
 
-This version keeps the same localStorage key as the previous two-vote version, so browsers that already voted should still show their previous selections and can unvote them.
+This version keeps the same localStorage key as the previous two-vote version, so browsers that already voted should still show their previous selections and can unvote them. It adds `/settings/maxVotesPerBrowser` for the admin-controlled 1-to-4 vote limit.
 
 ## Troubleshooting: names/descriptions flash, then reset
 
@@ -136,3 +141,11 @@ Example:
   }
 }
 ```
+
+## Troubleshooting: reset permission denied
+
+If reset gives `set at /votes/1 failed: permission_denied`, make sure you are using this version's `admin.js`. The reset code writes to `/votes/{id}/count`, not `/votes/{id}`.
+
+If reset gives `set at /scenarios/1/resetAt failed: permission_denied`, publish the latest `database.rules.json` in Firebase Console -> Realtime Database -> Rules. The rules must include an admin-only write rule for `/scenarios/{id}/resetAt`.
+
+Also confirm the signed-in admin's Firebase Authentication UID exists under `/admins/{uid}` in Realtime Database with the boolean value `true`.

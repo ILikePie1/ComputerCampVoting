@@ -30,12 +30,17 @@ const namesGrid = document.querySelector("#namesGrid");
 const resultsGrid = document.querySelector("#resultsGrid");
 const resetAllToggle = document.querySelector("#resetAllToggle");
 const resetAllButton = document.querySelector("#resetAllButton");
+const maxVotesSlider = document.querySelector("#maxVotesSlider");
+const maxVotesValue = document.querySelector("#maxVotesValue");
+const saveVoteLimitButton = document.querySelector("#saveVoteLimitButton");
 
 let scenariosData = {};
 let votesData = {};
 let unsubscribeScenarios = null;
 let unsubscribeVotes = null;
+let unsubscribeSettings = null;
 let isSavingScenarioDetails = false;
+let currentMaxVotesPerBrowser = 2;
 
 function setStatus(message, type = "") {
   statusMessage.textContent = message;
@@ -57,6 +62,32 @@ function getVoteNumber(value) {
 
 function formatNumber(value) {
   return getVoteNumber(value).toLocaleString();
+}
+
+function getAllowedVoteCount(value) {
+  if (value === null || value === undefined) {
+    return 2;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isInteger(number)) {
+    return 2;
+  }
+
+  return Math.min(4, Math.max(1, number));
+}
+
+function updateVoteLimitDisplay(value) {
+  const allowedVotes = getAllowedVoteCount(value);
+
+  if (maxVotesSlider) {
+    maxVotesSlider.value = String(allowedVotes);
+  }
+
+  if (maxVotesValue) {
+    maxVotesValue.textContent = String(allowedVotes);
+  }
 }
 
 function getNewResetToken() {
@@ -217,6 +248,18 @@ function startAdminListeners() {
     }
   );
 
+  unsubscribeSettings = onValue(
+    ref(db, "settings/maxVotesPerBrowser"),
+    (snapshot) => {
+      currentMaxVotesPerBrowser = getAllowedVoteCount(snapshot.val());
+      updateVoteLimitDisplay(currentMaxVotesPerBrowser);
+    },
+    (error) => {
+      console.error(error);
+      setStatus("Could not read vote-limit setting. Check database rules.", "error");
+    }
+  );
+
   unsubscribeVotes = onValue(
     ref(db, "votes"),
     (snapshot) => {
@@ -240,6 +283,11 @@ function stopAdminListeners() {
   if (unsubscribeVotes) {
     unsubscribeVotes();
     unsubscribeVotes = null;
+  }
+
+  if (unsubscribeSettings) {
+    unsubscribeSettings();
+    unsubscribeSettings = null;
   }
 }
 
@@ -325,6 +373,28 @@ resultsGrid.addEventListener("click", async (event) => {
   }
 });
 
+maxVotesSlider.addEventListener("input", () => {
+  updateVoteLimitDisplay(maxVotesSlider.value);
+});
+
+saveVoteLimitButton.addEventListener("click", async () => {
+  const newLimit = getAllowedVoteCount(maxVotesSlider.value);
+  saveVoteLimitButton.disabled = true;
+  setStatus(`Saving vote limit of ${newLimit} per browser...`);
+
+  try {
+    await set(ref(db, "settings/maxVotesPerBrowser"), newLimit);
+    currentMaxVotesPerBrowser = newLimit;
+    updateVoteLimitDisplay(newLimit);
+    setStatus(`Vote limit saved. Each browser can now vote for up to ${newLimit} scenario${newLimit === 1 ? "" : "s"}.`, "success");
+  } catch (error) {
+    console.error(error);
+    setStatus("Could not save vote limit. Make sure this user UID is in /admins and rules are published.", "error");
+  } finally {
+    saveVoteLimitButton.disabled = false;
+  }
+});
+
 resetAllToggle.addEventListener("change", () => {
   resetAllButton.disabled = !resetAllToggle.checked;
 });
@@ -386,6 +456,8 @@ onAuthStateChanged(auth, (user) => {
     resetAllToggle.checked = false;
     resetAllToggle.disabled = false;
     resetAllButton.disabled = true;
+    currentMaxVotesPerBrowser = 2;
+    updateVoteLimitDisplay(currentMaxVotesPerBrowser);
     setStatus("Not signed in.");
   }
 });

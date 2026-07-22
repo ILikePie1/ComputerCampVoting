@@ -46,6 +46,30 @@
         <div class="admin-section">
           <div class="section-heading">
             <div>
+              <h2>Votes per browser</h2>
+              <p>Choose how many scenarios each browser can vote for. This affects the public page immediately.</p>
+            </div>
+          </div>
+
+          <div class="vote-limit-panel">
+            <label for="maxVotesSlider">
+              Allowed votes per browser: <strong id="maxVotesValue">2</strong>
+            </label>
+            <input id="maxVotesSlider" type="range" min="1" max="4" step="1" value="2" />
+            <div class="slider-labels" aria-hidden="true">
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+            </div>
+            <button id="saveVoteLimitButton" class="admin-button" type="button">Save Vote Limit</button>
+            <p class="reset-help">This setting is stored in Firebase at /settings/maxVotesPerBrowser. Browser vote choices are still stored locally, so this is best for casual polls.</p>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="section-heading">
+            <div>
               <h2>Live results</h2>
               <p>Only signed-in counselors can read these totals. Each scenario has one net vote count; unvotes subtract from it.</p>
             </div>

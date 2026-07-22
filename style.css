@@ -143,7 +143,6 @@ h3 {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 0.5rem;
 }
 
 .scenario-meta {
@@ -436,4 +435,31 @@ h3 {
   font-size: 0.92rem;
   font-weight: 650;
   line-height: 1.45;
+}
+
+.vote-limit-panel {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--soft);
+}
+
+.vote-limit-panel label {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.vote-limit-panel input[type="range"] {
+  width: 100%;
+  accent-color: var(--blue);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-weight: 900;
 }
